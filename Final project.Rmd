@@ -1,0 +1,11 @@
+---
+title: "**Maternal dietary behaviors vs Asthma in children**"
+author: "Juhi Mattekatt (jm5916) and Nichcha Subdee (ns3923)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
