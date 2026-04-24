@@ -1,0 +1,318 @@
+---
+title: "**Maternal dietary behaviors vs Asthma in children**"
+output: html_document
+---
+
+##### **Group member:** Juhi Mattekatt (jm5916) and Nichcha Subdee (ns3923)
+
+---
+
+#### **Final project option 3 (Group assignment)**
+
+**Dataset:** Exposome
+
+**Type:** Hypotheses generation for targeted epidemiologic studies.
+
+**Research question: What is the relationship between maternal dietary behaviors during pregnancy and childhood asthma risk?**
+
+---
+
+#### **Background** 
+
+Asthma is one of the most common chronic diseases in children worldwide. It affected approximately 4,313 per 100,000 children under 20 years old in 2021 and accounts for more than 1% of global disability-adjusted life years (DALYs) (Kim et al., 2025). Although the global prevalence has declined by about 30% since 1990, asthma is expected to remain a major health burden through 2050, with the highest rates seen in children aged 5–9 years. Early-life and prenatal factors are known to play an important role in asthma development, and maternal health behaviors during pregnancy are one key area of interest. Maternal diet is a modifiable factor that may affect fetal immune development and airway formation, yet it remains unclear which specific dietary behaviors are most strongly linked to childhood asthma. 
+
+Therefore, this study will apply machine learning approaches to explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years, with findings intended to inform a future targeted epidemiological study and propose any public health interventions at the right point.
+
+---
+
+#### **Objective**
+
+* To explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years.
+
+* To compare the performance of different machine learning algorithms in detecting the relationship between maternal dietary behaviors during pregnancy and childhood asthma risk.
+
+---
+
+#### **Methodology**
+
+This study uses a real world exposome dataset based on the HELIX project database. The HELIX project is a multi-center European birth cohort integrating six longitudinal cohorts from France, Greece, Lithuania, Norway, Spain, and the UK, with children born between 2003 and 2009. 
+
+A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, with health outcomes including doctor-diagnosed asthma, dietary exposures, and sociodemographic characteristics recorded across all centers (Agier et al., 2019).
+
+**Outcome:** `hs_asthma` -- Doctor diagnosed asthma (ever)
+
+**Main exposures:** 8 variables for maternal dietary behaviors during pregnancy
+
+* `h_cereal_preg_Ter` -- cereal consumption during pregnancy (times/week)
+
+* `h_dairy_preg_Ter` -- dairy consumption during pregnancy (times/week)
+
+* `h_fastfood_preg_Ter`	-- fast food consumption during pregnancy (times/week)
+
+* `h_fish_preg_Ter` -- fish consumption during pregnancy (times/week)
+
+* `h_fruit_preg_Ter` -- fruit consumption during pregnancy (times/week)
+
+* `h_legume_preg_Ter` -- legume consumption during pregnancy (times/week)
+
+* `h_meat_preg_Ter` -- meat consumption during pregnancy (times/week)
+
+* `h_veg_preg_Ter` -- vegetables consumption during pregnancy (times/week)
+
+_Note: All dietary variables are tertile-coded (1 = low, 2 = medium, 3 = high)_
+
+**Covariates:** These five child and maternal covariates are included to account for sociodemographic and perinatal factors known to confound the relationship between maternal diet and child asthma risk.
+
+* `e3_sex_None` -- Child sex (female / male)
+
+* `h_age_None` -- Maternal age (years)
+
+* `h_edumc_None` -- Maternal education (1: primary school, 2:secondary school, 3:university degree or higher)
+
+* `h_mbmi_None` -- Maternal pre-pregnancy body mass index (kg/m2)
+
+* `h_cohort` -- Cohort of inclusion (1 to 6)
+
+**Study Framework:**
+
+1. **Data preparation & cleaning**
+
+2. **Unsupervised learning** (K-Means Clustering) 
+
+3. **Data partition** (70/30 stratified train/test split)
+
+4. **Supervised learning with hyperparameter tuning** (10-fold cross-validation)
+
+* Elastic Net 
+* Random Forest 
+* Support Vector Machine 
+
+5. **Model evaluation** (AUC-ROC, Sensitivity, Specificity on test set)
+
+6. **Interpretation** 
+
+#### **Pipeline**
+
+```{r library, include = FALSE}
+library(tidyverse)
+library(caret)
+library(glmnet)
+library(cluster)
+library(factoextra)
+```
+
+**Step 1: Data Preparation & Cleaning ** 
+
+```{r import, message=FALSE, include = FALSE}
+# Load data
+load("exposome.RData")
+
+# Merge all data frames
+studydata = merge(exposome, phenotype, by = "ID") |> 
+  merge(covariates, by = "ID")
+
+# Remove ID
+studydata$ID = NULL
+
+# Select variables
+diet_vars = c("h_cereal_preg_Ter", "h_dairy_preg_Ter", "h_fastfood_preg_Ter",
+               "h_fish_preg_Ter", "h_fruit_preg_Ter", "h_legume_preg_Ter",
+               "h_meat_preg_Ter", "h_veg_preg_Ter")
+
+covar_vars = c("e3_sex_None", "h_age_None", "h_edumc_None", "h_mbmi_None", "h_cohort")
+
+df = studydata[, c("hs_asthma", diet_vars, covar_vars)]
+
+# Recode outcome as factor
+df$hs_asthma = factor(df$hs_asthma, levels = c(0,1), labels = c("No", "Yes"))
+
+# Ensure dietary variables are ordered factors
+df[, diet_vars] = lapply(df[, diet_vars], function(x) factor(x, ordered = TRUE))
+
+# Ensure covariates are correct type
+df$e3_sex_None  = as.factor(df$e3_sex_None)
+df$h_edumc_None = as.factor(df$h_edumc_None)
+df$h_mbmi_None  = as.numeric(df$h_mbmi_None)
+df$h_cohort     = as.factor(df$h_cohort)
+df$h_age_None   = as.numeric(df$h_age_None)
+
+# Complete-case analysis
+df = na.omit(df)
+```
+
+```{r data_summary}
+# Final dataset dimensions and outcome distribution
+dim(df)
+table(df$hs_asthma)
+```
+
+The final analytic dataset contained **1,301** mother–child pairs and **14** variables (1 outcome, 8 maternal dietary exposures, and 5 covariates). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggest the need for resampling during model training.
+
+**Step 2: Unsupervised Learning — K-Means Clustering**
+
+The optimal number of clusters (k) was determined using two complementary approaches: the gap statistic and the elbow method.
+
+```{r kmeans_gap, echo=FALSE, warning=FALSE}
+set.seed(123)
+
+diet_matrix = df[, diet_vars] %>%
+  mutate(across(everything(), as.numeric)) %>%
+  scale()
+
+#Gap-statistic
+gap_stat = clusGap(diet_matrix, FUN = kmeans, nstart = 25, K.max = 8, B = 50)
+fviz_gap_stat(gap_stat)
+print(gap_stat, method = "firstmax")
+
+#Elbow method
+fviz_nbclust(diet_matrix, kmeans, method = "wss") +
+  labs(title = "Elbow Method for Optimal k",
+       x     = "Number of Clusters (k)",
+       y     = "Total Within-Cluster Sum of Squares")
+```
+
+The gap statistic recommended k = 8 as the optimal solution (gap = 0.549, SE = 0.005). However, since the analysis included exactly 8 dietary variables, using k = 8 would essentially assign each variable its own cluster, which limits meaningful interpretation. In addition, the elbow plot showed the largest drop in within-cluster variation from k = 1 to k = 3. Based on both methods, **k = 3 was chosen as the final number of clusters to represent three distinct maternal dietary patterns.**
+
+```{r kmeans_fit}
+set.seed(123)
+
+km = diet_matrix %>%
+  kmeans(centers = 3, nstart = 25)
+
+fviz_cluster(km, data = diet_matrix)
+
+cluster_profile = cbind(
+  df[, diet_vars] %>% mutate(across(everything(), as.numeric)),
+  diet_cluster = km$cluster
+)
+
+cluster_profile %>%
+  group_by(diet_cluster) %>%
+  summarise_all(mean) %>%
+  knitr::kable(digits = 2,
+               caption = "Table 1. Mean Dietary Intake by Cluster")
+
+df$diet_cluster = factor(km$cluster)
+table(df$diet_cluster)
+```
+
+Three distinct maternal dietary patterns were identified using k-means clustering (k = 3), based on mean tertile scores across eight dietary food groups during pregnancy.
+
+* **Cluster 1: High Legume/Dairy** (n = 657)  
+
+The highest legume (mean = 2.95) and dairy (mean = 2.69) intake among all clusters, suggesting a diet rich in plant-based protein and animal-sourced nutrients. Fast food consumption was also elevated (mean = 2.64).
+
+* **Cluster 2: High Cereal/Meat** (n = 268)  
+
+The highest cereal (mean = 2.74), meat (mean = 2.35), and fish intake (mean = 2.29), reflecting a more Western-style dietary pattern with higher processed grain and animal protein consumption.
+
+* **Cluster 3: High Vegetable/Fruit** (n = 376)  
+
+The highest vegetable (mean = 2.57) and fruit (mean = 2.47) intake, suggesting a diet with greater emphasis on plant-based foods. 
+
+_Note:_ From **table 1**, fast food consumption was similarly elevated in Cluster 1 (2.64) and Cluster 3 (2.63), and significantly lower in Cluster 2 (1.71). This pattern may partly reflect the mixed nutritional composition of fast food items common, which usually include dairy, vegetables, and legumes. This probably makes elevated fast food consumption behaviorally compatible with otherwise distinct dietary profiles.
+
+**Step 3: Data Partition**
+
+The dataset was split into 70% training and 30% test sets using stratified partitioning to preserve the class distribution of `hs_asthma`.
+
+```{r partition, include=TRUE}
+set.seed(123)
+
+train_index = createDataPartition(df$hs_asthma, p = 0.7, list = FALSE)
+train_data  = df[train_index, ]
+test_data   = df[-train_index, ]
+
+# Show sizes
+cat("Training set:", nrow(train_data), "observations\n")
+cat("Test set:    ", nrow(test_data), "observations\n")
+
+```
+
+The dataset was randomly split into a training set (n = 912) and a 
+test set (n = 389).
+
+**Step 4: Supervised Learning (Elastic Net, Random Forest, and Support Vector Machine**
+
+_Model 1_ Elastic Net was selected to handle correlation among dietary variables. Also, downsampling was applied to address class imbalance issue. 
+
+```{r en_train, include=TRUE}
+set.seed(123)
+
+# Broad lambda grid
+lambda   = 10^seq(-3, 1, length = 100)
+en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
+
+# 10-fold CV with downsampling for class imbalance
+control_settings = trainControl(
+  method          = "cv",
+  number          = 10,
+  sampling        = "down",
+  classProbs      = TRUE,
+  summaryFunction = twoClassSummary
+)
+
+en_model = train(
+  hs_asthma ~.,
+  data      = train_data,
+  method    = "glmnet",
+  preProc   = c("center", "scale"),
+  trControl = control_settings,
+  tuneGrid  = en_grid,
+  metric    = "ROC"
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+All students must address the following questions/items when reporting their project 
+**1. Provide a brief rationale for your research question. Why is it important? --- Done in Background**
+
+_2. Interpret results in the context of your research question. Showing the quantitative analysis is not sufficient. You must interpret your results in text._ 
+
+#### **Interpretation**
+
+....
+
+
+
+---
+
+_3. Describe at least one analytic limitation of your project and at least one ethical consideration that arises from your project. --- delete this later_
+
+#### **Limitations**
+
+* Dietary variables were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified.
+
+* The HELIX cohort is limited to six European countries, which may limit generalizability to other populations.
+
+
+
+#### **Ethical Considerations**
+
+* Dietary patterns are shaped by socioeconomic factors. Results should not be used to stigmatize individuals with limited food access, and any future interventions should account for structural barriers to healthy eating.
+
+
+
+
+---
+
+#### **References**
+
+1. Kim, Tae Hyeon et al. “Global burden of asthma among children and adolescents with projections to 2050: a comprehensive review and forecasted modeling study.” _Clinical and experimental pediatrics_ vol. 68,5 (2025): 329-343. doi:10.3345/cep.2025.00423
+
+2. Agier, Lydiane, et al. "Early-life exposome and lung function in children in Europe: an analysis of data from the longitudinal, population-based HELIX cohort." _The Lancet Planetary Health_ 3.2 (2019): e81-e92.
+
+---
+
+#### **AI tools**
+
+Claude.ai was used in this assignment to assist with debugging R code syntax errors and editing text for clarity and conciseness.
