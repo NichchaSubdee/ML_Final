@@ -11,9 +11,9 @@ output: html_document
 
 **Dataset:** Exposome
 
-**Type:** Hypotheses generation for targeted epidemiologic studies.
+**Type:** Hypotheses generation 
 
-**Research question: What is the relationship between maternal dietary behaviors during pregnancy and childhood asthma risk?**
+**Research question: What maternal dietary behaviors contribute to asthma incidence in offspring?**
 
 ---
 
@@ -21,7 +21,7 @@ output: html_document
 
 Asthma is one of the most common chronic diseases in children worldwide. It affected approximately 4,313 per 100,000 children under 20 years old in 2021 and accounts for more than 1% of global disability-adjusted life years (DALYs) (Kim et al., 2025). Although the global prevalence has declined by about 30% since 1990, asthma is expected to remain a major health burden through 2050, with the highest rates seen in children aged 5–9 years. Early-life and prenatal factors are known to play an important role in asthma development, and maternal health behaviors during pregnancy are one key area of interest. Maternal diet is a modifiable factor that may affect fetal immune development and airway formation, yet it remains unclear which specific dietary behaviors are most strongly linked to childhood asthma. 
 
-Therefore, this study will apply machine learning approaches to explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years, with findings intended to inform a future targeted epidemiological study and propose any public health interventions at the right point.
+Therefore, this study will apply machine learning approaches to explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years.
 
 ---
 
@@ -234,7 +234,7 @@ test set (n = 389).
 
 **Step 4: Supervised Learning (Elastic Net, Random Forest, and Support Vector Machine**
 
-_Model 1_ Elastic Net was selected to handle correlation among dietary variables. Also, downsampling was applied to address class imbalance issue. 
+_Model 1_ Elastic Net was selected to handle correlation among dietary variables. Also, upsampling was applied to address class imbalance issue. 
 
 ```{r en_train, include=TRUE}
 set.seed(123)
@@ -243,11 +243,11 @@ set.seed(123)
 lambda   = 10^seq(-3, 1, length = 100)
 en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
-# 10-fold CV with downsampling for class imbalance
+# 10-fold CV with upsampling for class imbalance
 control_settings = trainControl(
   method          = "cv",
   number          = 10,
-  sampling        = "down",
+  sampling        = "up",
   classProbs      = TRUE,
   summaryFunction = twoClassSummary
 )

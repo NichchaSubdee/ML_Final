@@ -362,11 +362,9 @@ Subdee (ns3923)</h5>
 <div id="final-project-option-3-group-assignment" class="section level4">
 <h4><strong>Final project option 3 (Group assignment)</strong></h4>
 <p><strong>Dataset:</strong> Exposome</p>
-<p><strong>Type:</strong> Hypotheses generation for targeted
-epidemiologic studies.</p>
-<p><strong>Research question: What is the relationship between maternal
-dietary behaviors during pregnancy and childhood asthma
-risk?</strong></p>
+<p><strong>Type:</strong> Hypotheses generation</p>
+<p><strong>Research question: What maternal dietary behaviors contribute
+to asthma incidence in offspring?</strong></p>
 <hr />
 </div>
 <div id="background" class="section level4">
@@ -385,9 +383,7 @@ airway formation, yet it remains unclear which specific dietary
 behaviors are most strongly linked to childhood asthma.</p>
 <p>Therefore, this study will apply machine learning approaches to
 explore the relationship between maternal dietary behaviors during
-pregnancy and asthma in children aged 6–11 years, with findings intended
-to inform a future targeted epidemiological study and propose any public
-health interventions at the right point.</p>
+pregnancy and asthma in children aged 6–11 years.</p>
 <hr />
 </div>
 <div id="objective" class="section level4">
@@ -645,7 +641,7 @@ test set (n = 389).</p>
 <p><strong>Step 4: Supervised Learning (Elastic Net, Random Forest, and
 Support Vector Machine</strong></p>
 <p><em>Model 1</em> Elastic Net was selected to handle correlation among
-dietary variables. Also, downsampling was applied to address class
+dietary variables. Also, upsampling was applied to address class
 imbalance issue.</p>
 <pre class="r"><code>set.seed(123)
 
@@ -653,11 +649,11 @@ imbalance issue.</p>
 lambda   = 10^seq(-3, 1, length = 100)
 en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
-# 10-fold CV with downsampling for class imbalance
+# 10-fold CV with upsampling for class imbalance
 control_settings = trainControl(
   method          = &quot;cv&quot;,
   number          = 10,
-  sampling        = &quot;down&quot;,
+  sampling        = &quot;up&quot;,
   classProbs      = TRUE,
   summaryFunction = twoClassSummary
 )
