@@ -3,7 +3,7 @@ title: "**Maternal dietary behaviors vs Asthma in children**"
 output: html_document
 ---
 
-##### **Group member:** Juhi Mattekatt (jm5916) and Nichcha Subdee (ns3923)
+##### **Group members:** Juhi Mattekatt (jm5916) and Nichcha Subdee (ns3923)
 
 ---
 
@@ -99,6 +99,9 @@ library(caret)
 library(glmnet)
 library(cluster)
 library(factoextra)
+library(e1071)
+library(randomForest)
+library(pROC)
 ```
 
 **Step 1: Data Preparation & Cleaning ** 
@@ -146,7 +149,7 @@ dim(df)
 table(df$hs_asthma)
 ```
 
-The final analytic dataset contained **1,301** mother–child pairs and **14** variables (1 outcome, 8 maternal dietary exposures, and 5 covariates). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggest the need for resampling during model training.
+The final analytic dataset contained **1,301** mother–child pairs and **14** variables (1 outcome, 8 maternal dietary exposures, and 5 covariates). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggests the need for resampling during model training.
 
 **Step 2: Unsupervised Learning — K-Means Clustering**
 
@@ -234,7 +237,9 @@ test set (n = 389).
 
 **Step 4: Supervised Learning (Elastic Net, Random Forest, and Support Vector Machine**
 
-_Model 1_ Elastic Net was selected to handle correlation among dietary variables. Also, upsampling was applied to address class imbalance issue. 
+Up-sampling was applied to address class imbalance issues.
+
+_Model 1_ Elastic Net was selected to handle correlation among dietary variables. 
 
 ```{r en_train, include=TRUE}
 set.seed(123)
@@ -263,11 +268,85 @@ en_model = train(
 )
 ```
 
+_Model 2_ Random Forest was selected as it can handle non-linear relationships and interaction well.
+
+```{r rf_train, include=TRUE}
+set.seed(123)
+
+num_predictors <- ncol(train_data) - 1
+mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors)
+mtry.grid <- expand.grid(.mtry = round(mtry.vals))
+
+rf <- train(
+  hs_asthma ~ ., 
+  data = train_data, 
+  method = "rf", 
+  metric = "ROC", 
+  tuneGrid = mtry.grid, 
+  trControl = control_settings, 
+  ntree = 100,
+  importance = TRUE
+)
+```
+
+_Model 3_ Support Vector Machine was selected 
+
+replace with boosting?
+
+```{r svm_train, include=TRUE}
+set.seed(123)
+
+train_control<-trainControl(method="cv", number=10, classProbs = T)
+
+svm.mod<-train(
+                  hs_asthma ~ ., 
+                  data=train_data, 
+                  method="svmLinear", 
+                  trControl=train_control,
+                  preProcess=c("center", "scale")
+                  )
+
+confusionMatrix(svm.mod)
 
 
+#Incorporate different values for cost (C)
+#svm.caret.2<-train(
+#                    outcome ~ ., 
+#                    data=train.data, 
+#                    method="svmLinear",  
+#                    trControl=train_control, 
+#                    preProcess=c("center", "scale"), 
+#                    tuneGrid=expand.grid(C=seq(0.001,2, length=30))
+#                    )
 
+#Visualize accuracy versus values of C
+#plot(svm.caret.2)
 
+#Obtain metrics of accuracy from training
+#confusionMatrix(svm.caret.2)
 
+#See information about final model
+#svm.caret.2$finalModel
+
+#Make predictions in testset
+#svm.pred.test <- svm.caret.2 %>% 
+#              predict(test.data)
+
+#Get evaluation metrics from test set
+#confusionMatrix(svm.pred.test, test.data$outcome, positive="HDPresent")
+
+#Create ROC Curve for Analysis
+#pred.prob <- svm.caret.2 %>% 
+#  predict(test.data, type = "prob")
+
+#Create plot of Area under the Receiver Operating Curve (AUROC)
+#analysis <- roc(response=test.data$outcome, predictor=pred.prob[,2])
+#plot(1-analysis$specificities,analysis$sensitivities,type="l",
+#ylab="Sensitivity",xlab="1-Specificity",col="black",lwd=2,
+#main = "ROC Curve for Heart Disease Classification")
+#abline(a=0,b=1)
+
+```
 
 
 
