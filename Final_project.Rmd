@@ -43,7 +43,7 @@ A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, wit
 
 **Outcome:** `hs_asthma` -- Doctor diagnosed asthma (ever)
 
-**Main exposures:** 8 variables for maternal dietary behaviors during pregnancy
+**Example Dietary features:** 8 variables for maternal dietary behaviors during pregnancy were found
 
 * `h_cereal_preg_Ter` -- cereal consumption during pregnancy (times/week)
 
@@ -62,18 +62,6 @@ A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, wit
 * `h_veg_preg_Ter` -- vegetables consumption during pregnancy (times/week)
 
 _Note: All dietary variables are tertile-coded (1 = low, 2 = medium, 3 = high)_
-
-**Covariates:** These five child and maternal covariates are included to account for sociodemographic and perinatal factors known to confound the relationship between maternal diet and child asthma risk.
-
-* `e3_sex_None` -- Child sex (female / male)
-
-* `h_age_None` -- Maternal age (years)
-
-* `h_edumc_None` -- Maternal education (1: primary school, 2:secondary school, 3:university degree or higher)
-
-* `h_mbmi_None` -- Maternal pre-pregnancy body mass index (kg/m2)
-
-* `h_cohort` -- Cohort of inclusion (1 to 6)
 
 **Study Framework:**
 
@@ -124,22 +112,13 @@ diet_vars = c("h_cereal_preg_Ter", "h_dairy_preg_Ter", "h_fastfood_preg_Ter",
                "h_fish_preg_Ter", "h_fruit_preg_Ter", "h_legume_preg_Ter",
                "h_meat_preg_Ter", "h_veg_preg_Ter")
 
-covar_vars = c("e3_sex_None", "h_age_None", "h_edumc_None", "h_mbmi_None", "h_cohort")
-
-df = studydata[, c("hs_asthma", diet_vars, covar_vars)]
+df = studydata[, c("hs_asthma", diet_vars)]
 
 # Recode outcome as factor
 df$hs_asthma = factor(df$hs_asthma, levels = c(0,1), labels = c("No", "Yes"))
 
 # Ensure dietary variables are ordered factors
 df[, diet_vars] = lapply(df[, diet_vars], function(x) factor(x, ordered = TRUE))
-
-# Ensure covariates are correct type
-df$e3_sex_None  = as.factor(df$e3_sex_None)
-df$h_edumc_None = as.factor(df$h_edumc_None)
-df$h_mbmi_None  = as.numeric(df$h_mbmi_None)
-df$h_cohort     = as.factor(df$h_cohort)
-df$h_age_None   = as.numeric(df$h_age_None)
 
 # Complete-case analysis
 df = na.omit(df)
@@ -151,7 +130,7 @@ dim(df)
 table(df$hs_asthma)
 ```
 
-The final analytic dataset contained **1,301** mother–child pairs and **14** variables (1 outcome, 8 maternal dietary exposures, and 5 covariates). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggests the need for resampling during model training.
+The final analytic dataset contained **1,301** mother–child pairs and **9** variables (1 outcome, 8 maternal dietary exposures). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggests the need for resampling during model training.
 
 **Step 2: Unsupervised Learning — K-Means Clustering**
 
@@ -160,8 +139,8 @@ The optimal number of clusters (k) was determined using two complementary approa
 ```{r kmeans_gap, echo=FALSE, warning=FALSE}
 set.seed(123)
 
-diet_matrix = df[, diet_vars] %>%
-  mutate(across(everything(), as.numeric)) %>%
+diet_matrix = df[, diet_vars] %>% 
+  mutate(across(everything(), as.numeric)) %>% 
   scale()
 
 #Gap-statistic
@@ -249,7 +228,7 @@ _Model 1:_ Logistic regression was selected as it is useful in hypothesis genera
 
 There are no hyperparameters to tune here.
 
-```{r svm_train, include=TRUE, warning=FALSE}
+```{r logistic_train, include=TRUE, warning=FALSE}
 set.seed(123)
 
 # 10-fold CV with upsampling for class imbalance
@@ -314,7 +293,7 @@ rf_model <- train(
 
 **Step 5: Model Comparison** 
 
-```{r, echo=FALSE}
+```{r mod_comp, echo=FALSE}
 model_comparison <- resamples(list(
   Logistic = l_model,
   Elastic_Net = en_model,
@@ -333,7 +312,7 @@ The elastic net model had the largest mean ROC of `r round(summary["Elastic_Net"
 
 **Step 6: Apply Model**
 
-```{r, echo=FALSE}
+```{r app_mod, echo=FALSE}
 final <- predict(en_model, test_data, type = "prob")
 test_roc <- roc(test_data$hs_asthma, final$Yes)
 plot(test_roc, main = "Final Model ROC Curve on Test Data")
@@ -346,7 +325,7 @@ This model has weak sensitivity and weak specificity. It is also only accurate i
 
 **Step 7: Variable Importance **
 
-```{r, echo=FALSE}
+```{r var_imp, echo=FALSE}
 varImp(en_model)
 plot(varImp(en_model))
 ```
@@ -366,6 +345,8 @@ A major limitation of the research is that the dietary variables included were t
 #### **Ethical Considerations**
 
 Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into meat and fish consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations. 
+
+---
 
 #### **References**
 
