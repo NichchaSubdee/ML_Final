@@ -178,7 +178,7 @@ fviz_nbclust(diet_matrix, kmeans, method = "wss") +
 
 The gap statistic recommended k = 8 as the optimal solution (gap = 0.549, SE = 0.005). However, since the analysis included exactly 8 dietary variables, using k = 8 would essentially assign each variable its own cluster, which limits meaningful interpretation. In addition, the elbow plot showed the largest drop in within-cluster variation from k = 1 to k = 3. Based on both methods, **k = 3 was chosen as the final number of clusters to represent three distinct maternal dietary patterns.**
 
-```{r kmeans_fit}
+```{r kmeans_fit, echo=FALSE}
 set.seed(123)
 
 km = diet_matrix %>%
@@ -221,7 +221,7 @@ _Note:_ From **table 1**, fast food consumption was similarly elevated in Cluste
 
 The dataset was split into 70% training and 30% test sets using stratified partitioning to preserve the class distribution of `hs_asthma`.
 
-```{r partition, include=TRUE}
+```{r partition, include=TRUE, echo=FALSE}
 set.seed(123)
 
 train_index = createDataPartition(df$hs_asthma, p = 0.7, list = FALSE)
@@ -245,7 +245,7 @@ _Model 1:_ Logistic regression was selected as it is useful in hypothesis genera
 
 There are no hyperparameters to tune here.
 
-```{r svm_train, include=TRUE}
+```{r svm_train, include=TRUE, warning=FALSE}
 set.seed(123)
 
 # 10-fold CV with upsampling for class imbalance
@@ -309,7 +309,7 @@ rf_model <- train(
 
 **Step 5: Model Comparison** 
 
-```{r}
+```{r, echo=FALSE}
 model_comparison <- resamples(list(
   Logistic = l_model,
   Elastic_Net = en_model,
@@ -328,7 +328,7 @@ The elastic net model had the largest mean ROC of `r round(summary["Elastic_Net"
 
 **Step 6: Apply Model**
 
-```{r}
+```{r, echo=FALSE}
 final <- predict(en_model, test_data, type = "prob")
 test_roc <- roc(test_data$hs_asthma, final$Yes)
 plot(test_roc, main = "Final Model ROC Curve on Test Data")
@@ -341,7 +341,7 @@ This model has weak sensitivity and weak specificity. It is also only accurate i
 
 **Step 7: Variable Importance **
 
-```{r}
+```{r, echo=FALSE}
 varImp(en_model)
 plot(varImp(en_model))
 ```
