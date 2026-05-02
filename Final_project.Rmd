@@ -13,7 +13,7 @@ output: html_document
 
 **Type:** Hypotheses generation 
 
-**Research question: What maternal dietary behaviors contribute to asthma incidence in offspring?**
+**Research question:** What maternal dietary behaviors contribute to asthma incidence in offspring?
 
 ---
 
@@ -30,6 +30,8 @@ Therefore, this study will apply machine learning approaches to explore the rela
 * To explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years.
 
 * To compare the performance of different machine learning algorithms in detecting the relationship between maternal dietary behaviors during pregnancy and childhood asthma risk.
+
+* To determine  maternal dietary behaviors during pregnancy that have the greatest risk of leading to asthma in offspring for future research.
 
 ---
 
@@ -83,9 +85,9 @@ _Note: All dietary variables are tertile-coded (1 = low, 2 = medium, 3 = high)_
 
 4. **Supervised learning with hyperparameter tuning** (10-fold cross-validation)
 
+* Logistic Regression
 * Elastic Net 
 * Random Forest 
-* Support Vector Machine 
 
 5. **Model evaluation** (AUC-ROC, Sensitivity, Specificity on test set)
 
@@ -235,18 +237,16 @@ cat("Test set:    ", nrow(test_data), "observations\n")
 The dataset was randomly split into a training set (n = 912) and a 
 test set (n = 389).
 
-**Step 4: Supervised Learning (Elastic Net, Random Forest, and Support Vector Machine**
+**Step 4: Supervised Learning (Logistic Regression, Elastic Net, and Random Forest )**
 
 Up-sampling was applied to address class imbalance issues.
 
-_Model 1_ Elastic Net was selected to handle correlation among dietary variables. 
+_Model 1:_ Logistic regression was selected as it is useful in hypothesis generation when trying to find statistically significant associations, it is also the standard baseline. 
 
-```{r en_train, include=TRUE}
+There are no hyperparameters to tune here.
+
+```{r svm_train, include=TRUE}
 set.seed(123)
-
-# Broad lambda grid
-lambda   = 10^seq(-3, 1, length = 100)
-en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
 # 10-fold CV with upsampling for class imbalance
 control_settings = trainControl(
@@ -256,6 +256,23 @@ control_settings = trainControl(
   classProbs      = TRUE,
   summaryFunction = twoClassSummary
 )
+
+l_model<- train(
+  hs_asthma ~ .,
+  data = train_data,
+  method = "glm", 
+  trControl = control_settings,
+  preProcess = c("center","scale")
+)
+```
+_Model 2:_ Elastic Net was selected to handle correlation among dietary variables. 
+
+```{r en_train, include=TRUE}
+set.seed(123)
+
+# Broad lambda grid
+lambda   = 10^seq(-3, 1, length = 100)
+en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
 en_model = train(
   hs_asthma ~.,
@@ -268,16 +285,17 @@ en_model = train(
 )
 ```
 
-_Model 2_ Random Forest was selected as it can handle non-linear relationships and interaction well.
+_Model 3:_ Random Forest was selected as it can handle non-linear relationships and interaction well.
 
 ```{r rf_train, include=TRUE}
 set.seed(123)
 
+#Borad mtry
 num_predictors <- ncol(train_data) - 1
 mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors)
 mtry.grid <- expand.grid(.mtry = round(mtry.vals))
 
-rf <- train(
+rf_model <- train(
   hs_asthma ~ ., 
   data = train_data, 
   method = "rf", 
@@ -289,100 +307,60 @@ rf <- train(
 )
 ```
 
-_Model 3_ Support Vector Machine was selected 
+**Step 5: Model Comparison** 
 
-replace with boosting?
+```{r}
+model_comparison <- resamples(list(
+  Logistic = l_model,
+  Elastic_Net = en_model,
+  Random_Forest = rf_model
+))
 
-```{r svm_train, include=TRUE}
-set.seed(123)
+mc <- summary(model_comparison)
+summary <- mc$statistics$ROC[, "Mean"]
 
-train_control<-trainControl(method="cv", number=10, classProbs = T)
+summary
 
-svm.mod<-train(
-                  hs_asthma ~ ., 
-                  data=train_data, 
-                  method="svmLinear", 
-                  trControl=train_control,
-                  preProcess=c("center", "scale")
-                  )
-
-confusionMatrix(svm.mod)
-
-
-#Incorporate different values for cost (C)
-#svm.caret.2<-train(
-#                    outcome ~ ., 
-#                    data=train.data, 
-#                    method="svmLinear",  
-#                    trControl=train_control, 
-#                    preProcess=c("center", "scale"), 
-#                    tuneGrid=expand.grid(C=seq(0.001,2, length=30))
-#                    )
-
-#Visualize accuracy versus values of C
-#plot(svm.caret.2)
-
-#Obtain metrics of accuracy from training
-#confusionMatrix(svm.caret.2)
-
-#See information about final model
-#svm.caret.2$finalModel
-
-#Make predictions in testset
-#svm.pred.test <- svm.caret.2 %>% 
-#              predict(test.data)
-
-#Get evaluation metrics from test set
-#confusionMatrix(svm.pred.test, test.data$outcome, positive="HDPresent")
-
-#Create ROC Curve for Analysis
-#pred.prob <- svm.caret.2 %>% 
-#  predict(test.data, type = "prob")
-
-#Create plot of Area under the Receiver Operating Curve (AUROC)
-#analysis <- roc(response=test.data$outcome, predictor=pred.prob[,2])
-#plot(1-analysis$specificities,analysis$sensitivities,type="l",
-#ylab="Sensitivity",xlab="1-Specificity",col="black",lwd=2,
-#main = "ROC Curve for Heart Disease Classification")
-#abline(a=0,b=1)
-
+bwplot(model_comparison, metric = "ROC")
 ```
 
+The elastic net model had the largest mean ROC of `r round(summary["Elastic_Net"], 2)`. We will apply our elastic net model to our test set. 
 
+**Step 6: Apply Model**
 
+```{r}
+final <- predict(en_model, test_data, type = "prob")
+test_roc <- roc(test_data$hs_asthma, final$Yes)
+plot(test_roc, main = "Final Model ROC Curve on Test Data")
 
+sen_spec <- predict(en_model, newdata = test_data)
+confusionMatrix(sen_spec, test_data$hs_asthma, positive = "Yes")
+```
 
-All students must address the following questions/items when reporting their project 
-**1. Provide a brief rationale for your research question. Why is it important? --- Done in Background**
+This model has weak sensitivity and weak specificity. It is also only accurate in its predictions about half the time. This suggests that the features included in this model don’t contain enough predictive power to predict risk of asthma.
 
-_2. Interpret results in the context of your research question. Showing the quantitative analysis is not sufficient. You must interpret your results in text._ 
+**Step 7: Variable Importance **
+
+```{r}
+varImp(en_model)
+plot(varImp(en_model))
+```
+
+Cohort of inclusion was the most influential feature in this model. The most important dietary predictors were meat and fish consumption during pregnancy.
 
 #### **Interpretation**
+Results from our analytic pipeline indicate that the selected dietary and demographic features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that meat consumption and fish consumption during pregnancy might play a role in asthma incidence. Future research should consider these exposures.  
 
-....
+Our findings should not be used in clinical or real-world settings. No causal inference can be made from our findings due to this study being hypothesis generating in nature. We can only recommend that research into maternal diet and asthma be informed by our findings. 
 
-
-
----
-
-_3. Describe at least one analytic limitation of your project and at least one ethical consideration that arises from your project. --- delete this later_
 
 #### **Limitations**
 
-* Dietary variables were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified.
-
-* The HELIX cohort is limited to six European countries, which may limit generalizability to other populations.
-
-
+A major limitation of the research is that the dietary variables included were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified. By assuming constant risk within each tertile, we likley lost statistical power. This may explain the lack of predictive power that we found. Additionally, the HELIX cohort is limited to six European countries, which may limit generalizability to populations outside Europe. We also used up-sampling to handle the unbalanced asthma cases and controls. This may have led to overfitting which would further reduce the generalizability of our results
 
 #### **Ethical Considerations**
 
-* Dietary patterns are shaped by socioeconomic factors. Results should not be used to stigmatize individuals with limited food access, and any future interventions should account for structural barriers to healthy eating.
-
-
-
-
----
+Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into meat and fish consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations. 
 
 #### **References**
 
