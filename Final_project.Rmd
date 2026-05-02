@@ -333,7 +333,7 @@ plot(varImp(en_model))
 The most important dietary predictors of asthma were found to be cereal and legume consumption during pregnancy.
 
 #### **Interpretation**
-Results from our analytic pipeline indicate that the selected dietary features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that cereal consumption and legume consumption during pregnancy might play a role in asthma incidence. Future research into diet and asthma should consider these exposures.  
+Results from our analytic pipeline indicate that the selected dietary features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that cereal consumption and legume consumption during pregnancy may contribute to asthma incidence. Future research into diet and asthma should consider these exposures.  
 
 Our findings should not be used in clinical or real-world settings. No causal inference and definitive statements of association can be made from our findings due to this study being hypothesis generating in nature. We can only recommend that research into maternal diet and asthma be informed by our findings. 
 
