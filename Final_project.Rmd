@@ -237,9 +237,13 @@ cat("Test set:    ", nrow(test_data), "observations\n")
 The dataset was randomly split into a training set (n = 912) and a 
 test set (n = 389).
 
-**Step 4: Supervised Learning (Logistic Regression, Elastic Net, and Random Forest )**
+**Step 4: Supervised Learning (Logistic Regression, Elastic Net, and Random Forest)**
 
 Up-sampling was applied to address class imbalance issues.
+
+10-fold cross validation was used as it provides the most robust estimates for model performance, our sample size wasn't too large so the computational cost was not too high. 
+
+The models were chosen as they are more interpretable than flexible, which is preferred when doing hypothesis-generation.
 
 _Model 1:_ Logistic regression was selected as it is useful in hypothesis generation when trying to find statistically significant associations, it is also the standard baseline. 
 
@@ -265,6 +269,7 @@ l_model<- train(
   preProcess = c("center","scale")
 )
 ```
+
 _Model 2:_ Elastic Net was selected to handle correlation among dietary variables. 
 
 ```{r en_train, include=TRUE}
@@ -290,7 +295,7 @@ _Model 3:_ Random Forest was selected as it can handle non-linear relationships 
 ```{r rf_train, include=TRUE}
 set.seed(123)
 
-#Borad mtry
+#Broad mtry
 num_predictors <- ncol(train_data) - 1
 mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors)
 mtry.grid <- expand.grid(.mtry = round(mtry.vals))
