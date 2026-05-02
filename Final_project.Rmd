@@ -39,7 +39,7 @@ Therefore, this study will apply machine learning approaches to explore the rela
 
 This study uses a real world exposome dataset based on the HELIX project database. The HELIX project is a multi-center European birth cohort integrating six longitudinal cohorts from France, Greece, Lithuania, Norway, Spain, and the UK, with children born between 2003 and 2009. 
 
-A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, with health outcomes including doctor-diagnosed asthma, dietary exposures, and sociodemographic characteristics recorded across all centers (Agier et al., 2019).
+A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, with health outcomes including doctor-diagnosed asthma, dietary exposures, and sociodemographic characteristics recorded across all centers (Agier et al., 2019). This present analysis uses 8 maternal dietary behaviors in the dataset that may impact asthma incidence. 
 
 **Outcome:** `hs_asthma` -- Doctor diagnosed asthma (ever)
 
@@ -254,7 +254,7 @@ _Model 2:_ Elastic Net was selected to handle correlation among dietary variable
 ```{r en_train, include=TRUE}
 set.seed(123)
 
-# Broad lambda grid
+#Lambda grid
 lambda   = 10^seq(-3, 1, length = 100)
 en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
@@ -274,7 +274,7 @@ _Model 3:_ Random Forest was selected as it can handle non-linear relationships 
 ```{r rf_train, include=TRUE}
 set.seed(123)
 
-#Broad mtry
+#mtry
 num_predictors <- ncol(train_data) - 1
 mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors)
 mtry.grid <- expand.grid(.mtry = round(mtry.vals))
@@ -321,7 +321,7 @@ sen_spec <- predict(en_model, newdata = test_data)
 confusionMatrix(sen_spec, test_data$hs_asthma, positive = "Yes")
 ```
 
-This model has weak sensitivity and weak specificity. It is also only accurate in its predictions about half the time. This suggests that the features included in this model don’t contain enough predictive power to predict risk of asthma.
+This model has weak sensitivity and weak specificity. It is also only accurate in its predictions about half the time. This suggests that the features included in this model don’t contain enough predictive power to accurately predict risk of asthma in offspring. The final ROC-AUC is `r round(auc(test_roc), 2)`.
 
 **Step 7: Variable Importance **
 
@@ -330,21 +330,20 @@ varImp(en_model)
 plot(varImp(en_model))
 ```
 
-Cohort of inclusion was the most influential feature in this model. The most important dietary predictors were meat and fish consumption during pregnancy.
+The most important dietary predictors of asthma were found to be cereal and legume consumption during pregnancy.
 
 #### **Interpretation**
-Results from our analytic pipeline indicate that the selected dietary and demographic features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that meat consumption and fish consumption during pregnancy might play a role in asthma incidence. Future research should consider these exposures.  
+Results from our analytic pipeline indicate that the selected dietary features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that cereal consumption and legume consumption during pregnancy might play a role in asthma incidence. Future research into diet and asthma should consider these exposures.  
 
-Our findings should not be used in clinical or real-world settings. No causal inference can be made from our findings due to this study being hypothesis generating in nature. We can only recommend that research into maternal diet and asthma be informed by our findings. 
-
+Our findings should not be used in clinical or real-world settings. No causal inference and definitive statements of association can be made from our findings due to this study being hypothesis generating in nature. We can only recommend that research into maternal diet and asthma be informed by our findings. 
 
 #### **Limitations**
 
-A major limitation of the research is that the dietary variables included were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified. By assuming constant risk within each tertile, we likley lost statistical power. This may explain the lack of predictive power that we found. Additionally, the HELIX cohort is limited to six European countries, which may limit generalizability to populations outside Europe. We also used up-sampling to handle the unbalanced asthma cases and controls. This may have led to overfitting which would further reduce the generalizability of our results
+A major limitation of the research is that the dietary variables included were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified. By assuming constant risk within each tertile, we likely lost statistical power. This may explain the lack of predictive power that we found. Additionally, the HELIX cohort is limited to six European countries, which may limit generalizability to populations outside Europe. We also used up-sampling to handle the unbalanced asthma cases and controls. This may have led to overfitting which would further reduce the generalizability of our results
 
 #### **Ethical Considerations**
 
-Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into meat and fish consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations. 
+Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into low legume consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations.
 
 ---
 
