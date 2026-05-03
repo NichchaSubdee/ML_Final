@@ -19,7 +19,7 @@ output: html_document
 
 #### **Background** 
 
-Asthma is one of the most common chronic diseases in children worldwide. It affected approximately 4,313 per 100,000 children under 20 years old in 2021 and accounts for more than 1% of global disability-adjusted life years (DALYs) (Kim et al., 2025). Although the global prevalence has declined by about 30% since 1990, asthma is expected to remain a major health burden through 2050, with the highest rates seen in children aged 5–9 years. Early-life and prenatal factors are known to play an important role in asthma development, and maternal health behaviors during pregnancy are one key area of interest. Maternal diet is a modifiable factor that may affect fetal immune development and airway formation, yet it remains unclear which specific dietary behaviors are most strongly linked to childhood asthma. 
+Asthma is one of the most common chronic diseases in children worldwide. It affected approximately 4,313 per 100,000 children under 20 years old in 2021 and accounts for more than 1% of global disability-adjusted life years (DALYs) (Kim et al., 2025). Although the global prevalence has declined by about 30% since 1990, asthma is expected to remain a major health burden through 2050, with the highest rates seen in children aged 5–9 years. Early-life and prenatal factors are known to play an important role in asthma development, and maternal health behaviors during pregnancy are one key area of interest. Maternal diet is a modifiable factor that may affect fetal immune development and airway formation, yet it remains unclear which specific dietary behaviors are most strongly linked to childhood asthma. Diet data is very high dimensional with many variables and interaction in between variables, so a machine learning approach may be beneficial, especially with a data from the Exposome dataset. 
 
 Therefore, this study will apply machine learning approaches to explore the relationship between maternal dietary behaviors during pregnancy and asthma in children aged 6–11 years.
 
@@ -43,7 +43,7 @@ A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, wit
 
 **Outcome:** `hs_asthma` -- Doctor diagnosed asthma (ever)
 
-**Example Dietary features:** 8 variables for maternal dietary behaviors during pregnancy were found
+**Dietary features:** 8 variables for maternal dietary behaviors during pregnancy were found
 
 * `h_cereal_preg_Ter` -- cereal consumption during pregnancy (times/week)
 
@@ -62,6 +62,21 @@ A cohort of 1,301 mother–child pairs was followed up at ages 6–12 years, wit
 * `h_veg_preg_Ter` -- vegetables consumption during pregnancy (times/week)
 
 _Note: All dietary variables are tertile-coded (1 = low, 2 = medium, 3 = high)_
+
+**Covariates:** These five child and maternal covariates are included to reduce the potential influence of sociodemographic and perinatal factors on the dietary exposure–asthma relationship. 
+
+* `e3_sex_None` -- Child sex (female / male)
+
+* `h_age_None` -- Maternal age (years)
+
+* `h_edumc_None` -- Maternal education (1: primary school, 2:secondary school, 3:university degree or higher)
+
+* `h_mbmi_None` -- Maternal pre-pregnancy body mass index (kg/m2)
+
+* `h_cohort` -- Cohort of inclusion (1 to 6)
+
+_Note: In a predictive framework, covariates are included as features rather than being causally controlled for. For Logistic Regression, all features are included by default. For the Elastic Net, a penalty factor of zero was applied to ensure covariates were always retained in the model. For Random Forest, covariates were included as eligible features but were not forced into the model but may be de-prioritized by the algorithm_
+
 
 **Study Framework:**
 
@@ -96,7 +111,7 @@ library(pROC)
 
 **Step 1: Data Preparation & Cleaning ** 
 
-```{r import, message=FALSE, include = FALSE}
+```{r import, message=FALSE}
 # Load data
 load("exposome.RData")
 
@@ -112,7 +127,9 @@ diet_vars = c("h_cereal_preg_Ter", "h_dairy_preg_Ter", "h_fastfood_preg_Ter",
                "h_fish_preg_Ter", "h_fruit_preg_Ter", "h_legume_preg_Ter",
                "h_meat_preg_Ter", "h_veg_preg_Ter")
 
-df = studydata[, c("hs_asthma", diet_vars)]
+covar_vars = c("e3_sex_None", "h_age_None", "h_edumc_None", "h_mbmi_None", "h_cohort")
+
+df = studydata[, c("hs_asthma", diet_vars, covar_vars)]
 
 # Recode outcome as factor
 df$hs_asthma = factor(df$hs_asthma, levels = c(0,1), labels = c("No", "Yes"))
@@ -120,23 +137,30 @@ df$hs_asthma = factor(df$hs_asthma, levels = c(0,1), labels = c("No", "Yes"))
 # Ensure dietary variables are ordered factors
 df[, diet_vars] = lapply(df[, diet_vars], function(x) factor(x, ordered = TRUE))
 
+# Ensure covariates are correct type
+df$e3_sex_None  = as.factor(df$e3_sex_None)
+df$h_edumc_None = as.factor(df$h_edumc_None)
+df$h_mbmi_None  = as.numeric(df$h_mbmi_None)
+df$h_cohort     = as.factor(df$h_cohort)
+df$h_age_None   = as.numeric(df$h_age_None)
+
 # Complete-case analysis
 df = na.omit(df)
 ```
 
 ```{r data_summary}
 # Final dataset dimensions and outcome distribution
-dim(df)
-table(df$hs_asthma)
+dataset = dim(df)
+knitr::kable(table(df$hs_asthma), col.names = c("Asthma", "Total"), caption = "Asthma Frequency")
 ```
 
-The final analytic dataset contained **1,301** mother–child pairs and **9** variables (1 outcome, 8 maternal dietary exposures). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggests the need for resampling during model training.
+The final analytic dataset contained `r dataset[1]` mother–child pairs and `r dataset[2]` variables (1 outcome, 8 maternal dietary exposures, 5 covariates). The outcome variable `hs_asthma` showed class imbalance (1,159 children without asthma vs. 142 children with a doctor-diagnosed asthma). This suggests the need for resampling during model training.
 
 **Step 2: Unsupervised Learning — K-Means Clustering**
 
 The optimal number of clusters (k) was determined using two complementary approaches: the gap statistic and the elbow method.
 
-```{r kmeans_gap, echo=FALSE, warning=FALSE}
+```{r kmeans_gap, warning=FALSE}
 set.seed(123)
 
 diet_matrix = df[, diet_vars] %>% 
@@ -157,7 +181,7 @@ fviz_nbclust(diet_matrix, kmeans, method = "wss") +
 
 The gap statistic recommended k = 8 as the optimal solution (gap = 0.549, SE = 0.005). However, since the analysis included exactly 8 dietary variables, using k = 8 would essentially assign each variable its own cluster, which limits meaningful interpretation. In addition, the elbow plot showed the largest drop in within-cluster variation from k = 1 to k = 3. Based on both methods, **k = 3 was chosen as the final number of clusters to represent three distinct maternal dietary patterns.**
 
-```{r kmeans_fit, echo=FALSE}
+```{r kmeans_fit}
 set.seed(123)
 
 km = diet_matrix %>%
@@ -174,10 +198,10 @@ cluster_profile %>%
   group_by(diet_cluster) %>%
   summarise_all(mean) %>%
   knitr::kable(digits = 2,
-               caption = "Table 1. Mean Dietary Intake by Cluster")
+               caption = "Mean Dietary Intake by Cluster")
 
 df$diet_cluster = factor(km$cluster)
-table(df$diet_cluster)
+knitr::kable(table(df$diet_cluster), col.names = c("Diet Cluster", "Total"))
 ```
 
 Three distinct maternal dietary patterns were identified using k-means clustering (k = 3), based on mean tertile scores across eight dietary food groups during pregnancy.
@@ -198,9 +222,9 @@ _Note:_ From **table 1**, fast food consumption was similarly elevated in Cluste
 
 **Step 3: Data Partition**
 
-The dataset was split into 70% training and 30% test sets using stratified partitioning to preserve the class distribution of `hs_asthma`.
+The dataset was split into 70% training and 30% test sets using stratified partitioning to preserve the class distribution of `hs_asthma`. Data was partitioned to create one set of data to generate hypotheses and other to test hypotheses.
 
-```{r partition, include=TRUE, echo=FALSE}
+```{r partition, include=TRUE, message=FALSE}
 set.seed(123)
 
 train_index = createDataPartition(df$hs_asthma, p = 0.7, list = FALSE)
@@ -213,8 +237,7 @@ cat("Test set:    ", nrow(test_data), "observations\n")
 
 ```
 
-The dataset was randomly split into a training set (n = 912) and a 
-test set (n = 389).
+The dataset was randomly split into a training set (n = 912) and a test set (n = 389).
 
 **Step 4: Supervised Learning (Logistic Regression, Elastic Net, and Random Forest)**
 
@@ -222,11 +245,9 @@ Up-sampling was applied to address class imbalance issues.
 
 10-fold cross validation was used as it provides the most robust estimates for model performance, our sample size wasn't too large so the computational cost was not too high. 
 
-The models were chosen as they are more interpretable than flexible, which is preferred when doing hypothesis-generation.
+Hyperparameters were tuned when possible to balance bias and variance and to reduce noise.
 
 _Model 1:_ Logistic regression was selected as it is useful in hypothesis generation when trying to find statistically significant associations, it is also the standard baseline. 
-
-There are no hyperparameters to tune here.
 
 ```{r logistic_train, include=TRUE, warning=FALSE}
 set.seed(123)
@@ -245,28 +266,46 @@ l_model<- train(
   data = train_data,
   method = "glm", 
   trControl = control_settings,
-  preProcess = c("center","scale")
+  preProcess = c("center","scale"), #ranges for the variables are varied 
+  metric    = "ROC" 
 )
+
 ```
 
-_Model 2:_ Elastic Net was selected to handle correlation among dietary variables. 
+_Model 2:_ Elastic Net was selected to handle correlation among dietary variables.
+
+A penalty factor of zero was applied to all covariates to ensure they were always retained in the model regardless of regularization, to reduce the influence of sociodemographic factors. Dietary variables were penalized and subject to selection.
+
+Hyperparameters `alpha` and `lambda` were tuned using a grid search with 10-fold 
+cross-validation.
 
 ```{r en_train, include=TRUE}
 set.seed(123)
 
-#Lambda grid
-lambda   = 10^seq(-3, 1, length = 100)
-en_grid  = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
+# Build model matrix to get correct column names after dummy expansion
+x_train = model.matrix(hs_asthma ~ . - diet_cluster, data = train_data)[, -1]
+
+# Penalty factor: 0 = always kept (covariates), 1 = penalized (dietary vars)
+covar_vars = c("e3_sex_None", "h_age_None", "h_edumc_None", "h_mbmi_None", "h_cohort")
+penalty_vec = ifelse(grepl(paste(covar_vars, collapse = "|"), colnames(x_train)), 0, 1)
+
+# Lambda grid
+lambda  = 10^seq(-3, 1, length = 100)
+en_grid = expand.grid(alpha = seq(0, 1, by = 0.1), lambda = lambda)
 
 en_model = train(
-  hs_asthma ~.,
-  data      = train_data,
-  method    = "glmnet",
-  preProc   = c("center", "scale"),
-  trControl = control_settings,
-  tuneGrid  = en_grid,
-  metric    = "ROC"
+  hs_asthma ~ . - diet_cluster,
+  data           = train_data,
+  method         = "glmnet",
+  preProc        = c("center", "scale"),
+  trControl      = control_settings,
+  tuneGrid       = en_grid,
+  metric         = "ROC",
+  penalty.factor = penalty_vec
 )
+
+# Best tune
+en_model$bestTune
 ```
 
 _Model 3:_ Random Forest was selected as it can handle non-linear relationships and interaction well.
@@ -276,7 +315,7 @@ set.seed(123)
 
 #mtry
 num_predictors <- ncol(train_data) - 1
-mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors)
+mtry.vals <- c(num_predictors, sqrt(num_predictors), 0.5 * num_predictors, 2 * num_predictors)
 mtry.grid <- expand.grid(.mtry = round(mtry.vals))
 
 rf_model <- train(
@@ -286,14 +325,17 @@ rf_model <- train(
   metric = "ROC", 
   tuneGrid = mtry.grid, 
   trControl = control_settings, 
-  ntree = 100,
+  ntree = 300,
   importance = TRUE
 )
+
+#best tune 
+rf_model$bestTune
 ```
 
 **Step 5: Model Comparison** 
 
-```{r mod_comp, echo=FALSE}
+```{r mod_comp, message=FALSE}
 model_comparison <- resamples(list(
   Logistic = l_model,
   Elastic_Net = en_model,
@@ -303,16 +345,16 @@ model_comparison <- resamples(list(
 mc <- summary(model_comparison)
 summary <- mc$statistics$ROC[, "Mean"]
 
-summary
+knitr::kable(summary, col.names = c("Model", "Mean ROC"))
 
-bwplot(model_comparison, metric = "ROC")
+bwplot(model_comparison, metric = "ROC", main = "ROC Distribution by Model")
 ```
 
 The elastic net model had the largest mean ROC of `r round(summary["Elastic_Net"], 2)`. We will apply our elastic net model to our test set. 
 
 **Step 6: Apply Model**
 
-```{r app_mod, echo=FALSE}
+```{r app_mod, message=FALSE}
 final <- predict(en_model, test_data, type = "prob")
 test_roc <- roc(test_data$hs_asthma, final$Yes)
 plot(test_roc, main = "Final Model ROC Curve on Test Data")
@@ -325,7 +367,7 @@ This model has weak sensitivity and weak specificity. It is also only accurate i
 
 **Step 7: Variable Importance **
 
-```{r var_imp, echo=FALSE}
+```{r var_imp}
 varImp(en_model)
 plot(varImp(en_model))
 ```
@@ -333,13 +375,13 @@ plot(varImp(en_model))
 The most important dietary predictors of asthma were found to be cereal and legume consumption during pregnancy.
 
 #### **Interpretation**
-Results from our analytic pipeline indicate that the selected dietary features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that cereal consumption and legume consumption during pregnancy might play a role in asthma incidence. Future research into diet and asthma should consider these exposures.  
+Results from our analytic pipeline indicate that the selected dietary features did not have enough predictive power to accurately predict asthma cases. However, while our model was not highly accurate, our findings suggest that cereal consumption and legume consumption during pregnancy may contribute to asthma incidence. Future research into diet and asthma should consider these exposures.  
 
-Our findings should not be used in clinical or real-world settings. No causal inference and definitive statements of association can be made from our findings due to this study being hypothesis generating in nature. We can only recommend that research into maternal diet and asthma be informed by our findings. 
+Our findings should not be used in clinical or real-world settings. No causal inference and definitive statements of association can be made from our findings due to this study being hypothesis generating in nature. Although sociodemographic covariates were included as features, this study focused on dietary exposures and unmeasured confounders cannot be fully accounted for. We can only recommend that research into maternal diet and asthma be informed by our findings. If significant, findings from that research would be helpful to expecting parents who would be able to modify their diets in order to reduce asthma risk in their offspring. 
 
 #### **Limitations**
 
-A major limitation of the research is that the dietary variables included were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified. By assuming constant risk within each tertile, we likely lost statistical power. This may explain the lack of predictive power that we found. Additionally, the HELIX cohort is limited to six European countries, which may limit generalizability to populations outside Europe. We also used up-sampling to handle the unbalanced asthma cases and controls. This may have led to overfitting which would further reduce the generalizability of our results
+A major limitation of the research is that the dietary variables included were tertile-coded, which may obscure true variation in intake and limit precision of the dietary patterns identified. By assuming constant risk within each tertile, we likely lost statistical power. This may explain the lack of predictive power that we found. Additionally, the HELIX cohort is limited to six European countries, which may limit generalizability to populations outside Europe. We also used up-sampling to handle the class imbalance between asthma cases and controls. This may have led to overfitting which would further reduce the generalizability of our results. While the Elastic Net model forced covariates into the model via a zero penalty factor, full confounding adjustment in the causal sense is not possible in a predictive framework. Residual confounding from unmeasured factors (e.g., smoking, indoor allergens, antibiotic use) cannot be ruled out.  
 
 #### **Ethical Considerations**
 
