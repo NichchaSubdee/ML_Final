@@ -392,7 +392,7 @@ A major limitation of the research is that the dietary variables included were t
 
 #### **Ethical Considerations**
 
-Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into low legume consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations.
+Dietary patterns are shaped by socioeconomic and cultural factors. Results should not be used to stigmatize individuals with limited food access, and any future research should account for structural barriers to healthy eating. Moreover, our dataset relies on European data and best informs research done on similar populations. For instance, research into meat consumption as a cause for asthma may not be beneficial in areas with greater vegetarian populations.
 
 ---
 
